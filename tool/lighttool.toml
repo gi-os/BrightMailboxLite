@@ -1,6 +1,6 @@
 [tool]
 id = "com.gios.brightmailboxlite"
-label = "Mailbox Lite"
+label = "BrightMailbox Lite"
 versionCode = 1
 versionName = "0.1.0"
 permissions = ["android.permission.INTERNET", "android.permission.CAMERA"]
