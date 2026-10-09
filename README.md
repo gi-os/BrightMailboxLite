@@ -1,72 +1,137 @@
-# light-sdk
-or: a tool for building Tools
+# Mailbox Lite
 
-## tl;dr
-This repository contains the scaffolding for building simple tools for the Light Phone III. Included are a library ([:sdk:client](./sdk/client)) and placeholder application ([:tool](./tool)) that depends on it. To create a tool that is fully compatible with LightOS, you must write your application code within the `tool` module, using the primitives provided by the sdk client library.
+A mail tool for the Light Phone III, built as an official Light SDK tool. It is the
+small version of [BrightMailbox](https://github.com/gi-os/BrightMailbox), Gio's
+sideloaded mail app, cut down to what the SDK allows.
 
-You can and should use current Android best practices: Kotlin for all source code, Compose for UI, Coroutines for async programming, and MVVM architecture. **Although this is appears to be a fairly standard Android dev environment, you will quickly find out that we are (gently but broadly) restricting which Android APIs and third-party libraries can be used. This is in an effort to provide a secure and distinctly _light_ experience for our users. These restrictions are _not_ set in stone and should ease up over time. If there is a stable, open-source library that you'd like us to allow, please let us know! More on this later.**
+Mail is sorted into two piles:
 
-## IMPORTANT!! July 1, 2026 Update
-If you're reading this, welcome! You're early! (in a cool way)
-This repo is a work-in-progress and will remain so for a while. Things are going to change _fast_ in the coming weeks. If you're going to start building right away, be sure to `git pull` frequently.
-Before you do, though, please be aware that **while we feel good about letting everybody start to explore and build, we are still working on the infrastructure to properly deploy your new tools.**
-The currently builds of LightOS in the wild are not yet ready to "play nice" with the tools built here. If you're someone who's already comfortable working with ADB to sideload APKs on your
-Light Phone III, you can totally do that with whatever you do here! But we're shooting to make these tools feel as seamless as the ones already available in LightOS, and that's going to take a bit more work. 
-We're hoping to have an update on that front later this month. In the meantime, the best way to start working is to use an Android emulator running our new [LightOS Emulator](sdk/emulator). The instructions for getting that up and running
-are [right here](docs/system_app).
+- **Letters** are messages a person wrote to you. They get the whole screen, one at a
+  time, set like a page. You get a ration of them per day: five, or unlimited. Once the
+  five are read, the list says so and there is nothing more to scroll.
+- **Notices** are everything a machine sent: receipts, shipping updates, codes,
+  newsletters. One line each, grouped by day. They never make a sound (Lite cannot make
+  sounds at all; see below).
 
-## Quickstart
+Built on [lightphone/light-sdk](https://github.com/lightphone/light-sdk) (MIT). The SDK
+modules (`sdk/`, `plugin/`, `lint-rules/`, and the rest) are upstream and untouched; the
+tool lives in `tool/`.
 
-### Running your Tool
-**You can test your tool on any Android device or emulator**, but certain functionality (receiving push notifications, requesting special permissions) can only be tested with:
-A) Real Light Phone hardware running LightOS
-B) An Android emulator (on your computer) set up to run our LightOS emulator app as a _system app_ ([see advanced instructions](docs/system_app))
+## What it keeps from the full app
 
-You can quickly [create an emulator](https://developer.android.com/studio/run/managing-avds) that generally feels like an LPIII by using the following settings:
-* 1080 X 1240, 3.92" display
-* Android API 34
-* NO Google Play Services installed
+- **The sorter, verbatim.** `sort/Headers.kt`, `Sorter.kt`, `Learner.kt`, `Lessons.kt` and
+  `Envelope.kt` are the full app's files with only the package renamed, and their tests
+  came with them. Tier 0 decides the pile from headers (`List-Unsubscribe`, `Precedence`,
+  `Auto-Submitted`, no-reply senders, VERP return paths, calendar invites, crowds of
+  recipients). Above all of them: if you have written to an address, its mail is a
+  Letter. Tier 1, the small hashed logistic-regression model, ranks the Letters that
+  compete for the day's ration.
+- **The Sent-folder signal.** On the first check, Lite reads the last year of your Sent
+  folder (up to 1000 messages, To and Cc only) to learn who you write to. Replies sent
+  from Lite count too.
+- **The daily ration**, with the full app's rules: Letters read today stay on the list,
+  the model picks which unread ones fill the rest, the list is shown in time order, and
+  "Read one more" unlocks a sixth.
+- **Inspectable sorting.** Every message says why it landed where it did, in words, and
+  one tap moves its sender to the other pile. Every move is listed in Settings and can
+  be undone there.
+- **Quote and signature stripping** (`text/Clean.kt`, verbatim).
+- **Gmail with an app password**, typed or scanned. The QR format is the full app's
+  (`brightmailbox://signin?s=google&e=...&p=...`), so the same companion page at
+  <https://gi-os.github.io/BrightMailbox/> works for both apps.
+- **Any other IMAP mailbox**: address, user name, password, IMAP host and port, SMTP
+  host and port. The SMTP host is guessed from the IMAP host.
+- **Plain-text replies** over SMTP: implicit TLS on 465, or STARTTLS on 587 (Lite refuses
+  to send a password over a connection that will not encrypt). AUTH PLAIN, falling back
+  to AUTH LOGIN. Replies thread correctly (`In-Reply-To`, `References`) and quote the
+  original below.
+- **Checking while open and in the background**: on open and every 5 minutes while
+  Mailbox Lite is on screen, and a LightWork periodic job every 15 minutes (the SDK
+  minimum; Android may stretch it).
+- **The scroll wheel** turns the page in the reader and scrolls every list.
 
-### Start Building
-1. Fork and/or clone this repository into your local dev environment.
-2. Install Android Studio and open this project within it. (IntelliJ IDEA should also work)
+## What it drops, and why
 
-3. Edit the code in `HomeScreen` and `HomeScreenViewModel` to get started. `Homescreen` surfaces a `@Composable` method named `Content`. This is the UI that is shown when the tool first boots. You'll notice this UI sources data from it's `viewModel` field, which is an instance of `HomeScreenViewModel`. Edit that class with your screen's logic and expose the data to the UI using either Compose `State` or Coroutine `Flow`s. If you want to create a new screen, create a new Screen/ViewModel pair: your screen should extend from `LightScreen` and your VM from `LightScreenViewModel`. Your screen implementation will need:
-   1. A direct reference to your ViewModel's class type
-   2. A factory method for creating a new instance of your ViewModel.
+| Feature in BrightMailbox | In Lite | Why |
+| --- | --- | --- |
+| Outlook one-tap sign-in (OAuth) | Dropped | Microsoft's flow opens a browser and returns through a custom-scheme redirect into the app. That needs an Intent and a manifest intent filter, which SDK tools cannot have. Microsoft retired IMAP Basic auth, so a password fallback would be refused. An Outlook QR code is rejected with a sentence saying so. |
+| HTML mail "as the sender built it" | Text only | No WebView and no jsoup in the SDK. Lite picks the `text/plain` part when it is real, and otherwise converts HTML to text with its own small converter (`text/Html.kt`). Images and layout are left out, and the reader says so. |
+| Angus Mail for MIME | Replaced | Not on the SDK allowlist. Lite has its own minimal IMAP client (`imap/`) and MIME reader (`mail/Mime.kt`): multipart trees, quoted-printable, base64, RFC 2047 headers, RFC 2231 file names, `format=flowed`, declared and undeclared charsets. |
+| CameraX QR scanning | Replaced | Not allowed. Lite uses the SDK's `LightQrCodeScanner`, which is the only camera access tools get. |
+| Notifications and sounds ("Letters notify, Notices never do") | Dropped | The SDK exposes no notification API to tools (`NotificationManager` needs `getSystemService`, which is blocked). New Letters are simply there the next time you open the tool. |
+| Attachments (open, save, send) | Names only | No file sharing to other apps without Intents. The reader lists attachment names; open them on a computer. |
+| Archive, star, search, threads, compose-new, forward, calendar RSVP, parcels tracking, PDF viewer | Dropped | Scope. Lite keeps the sorting and the ration solid rather than many half-features. The ration counts messages, not conversations. |
+| Room database | JSON files | Simpler for a few thousand rows; Lite keeps six weeks of headers (max 1500 messages) in the tool's private storage. |
 
-Look at `HomeScreen` as an example for how this is done. To navigate to your new screen, use the `navigateTo` function built into `LightScreen` - just pass it a lambda to create an instance of your new screen. Note that the `LightScreen` constructor takes in a `SealedLightActivity`. The lambda is provided an instance of this as a default parameter.
+## Security notes
 
-Since LightOS does not use Android system navigation, we provide a back button for you. As long as you use `navigateTo` to move between screens, our back button should work great. If need be, you can override the `onBackPressed` method in your `LightViewModel`.
+- IMAP and SMTP run over TLS with the certificate chain **and** the hostname checked
+  (`imap/Tls.kt`). A raw `SSLSocket` does not check the hostname by itself; Lite enables
+  endpoint identification and also runs the platform hostname verifier.
+- Passwords are encrypted with AES-256-GCM under a key in the Android Keystore and the
+  ciphertext is stored in the tool's DataStore. The SDK has no keystore wrapper of its
+  own; this follows the SDK's Authenticator example, which uses the platform keystore
+  directly.
+- Reading uses `BODY.PEEK`, so nothing is marked read by accident. Opening a message
+  marks it `\Seen` on the server; if that fails, it is retried on the next check.
+- Bodies are fetched with a 256 KB cap (`BODY.PEEK[]<0.262144>`), so one large
+  attachment cannot exhaust memory. The parser copes with the cut.
 
-### Submitting Your Tool
-Given our relatively limited resources and desire to keep our users safe, we're requiring that all community tools be open source (including our own!). 
-Tools are built and signed directly from a publicly available git commit, and we'll be archiving the source at build time.
-You're free to build and share privately, but LightOS won't let you install tools that are not signed by us without acknowledging privacy and performance risks.
-We won't block users from performing these "dangerous" sideloads, but we're not going to encourage it either. 
-Using the Dashboard, developers are able to queue up a build of your tool on our servers, and if it follows our guidelines and compiles cleanly, we will hand you back a signed, shareable APK.
+## Setup
 
-1. Review the [Tool Guidelines](TOOL_GUIDELINES.md) to get a sense of the kind of tools we're hoping to showcase.
-2. Ensure your tool is built with the latest Light SDK version and is accessible via a public Github repo.
-3. Enable developer mode on the [dashboard](https://dashboard.thelightphone.com/): Settings -> Account -> Developer Account.
-4. From there, you can create your tool: Settings -> Account -> Developer Account -> Manage Custom Tools -> Submit New Tool:
-  - The package name is unique for all tools and can't be changed later. It is pulled from the default branch of the Github repo submitted upon registering the tool.
-  - You'll then have the opportunity to add images. You can add them later on as well, but we'll require at least one for a tool to be approved.
-5. Now go in the tool detail page and press "submit build":
-  - Enter the git ref of the version of the tool to be built and a small description of the changelog.
-  - If your tool already has an active build, you won't be able to submit another.
-  - The `versionCode` of the submitted build should be higher than the one of the last version listed in the Tool page.
-6. Wait for the build to finish:
-  - In case of an error, use the "view details" button on the "Builds" section of the Tool page to check the error message. The "retry build" can be used to re-attempt building from the same git ref if necessary.
-  - If you believe the build error is due to an issue on our end (e.g. with light-sdk or our infrastructure), please feel free to open an Issue on this repo!
-  - In case of success, the "download apk" button should appear. A new "Version" entry will be created with "pending approval" status.
-7. Our team will review the builds and reach out to you via e-mail if we have any feedback regarding the approval process.
-8. If you have any questions, please e-mail us at tools@thelightphone.com
+**Gmail.** Turn on 2-Step Verification, make an app password at
+<https://myaccount.google.com/apppasswords>, then either:
 
-### Sharing Your Tool
-Once we release a version of LightOS that supports community tools, users will have an option to choose what kind of tools they want to be able to run on their device:
-- **Light-approved tools**: These include tools that are either built internally by the Light team, or built by the community and officially tested/signed-off by the Light team. We don't know _exactly_ what that sign-off process is going to look like, but as a heads-up: we're going to be looking pretty hard at whether a submitted tool matches the Light ethos both functionally and aesthetically. We've included a UX/UI library to make this as easy as possible! From a technical standpoint, these approved tools are both signed by us _and_ added to an "allow-list" within LightOS. Phones with this option selected will only install and display tools that meet both criteria.
-- **SDK-built tools**: This is a slightly more permissive choice. Phones with this option selected will install and launch any tool that was built and signed by Light. These don't require any manual approval by us (although we can block them in extreme cases). If a user wants to be able to install a tool that was shared locally or somewhere outside of Light's dashboard, but they still want to be confident that it will run well and integrate nicely with LightOS, they might choose this option.
-- **Any tools**: A user will have the option to make any APK launchable from LightOS, but they will own the responsibility of getting them installed/uninstalled. When a user selects this option, we will warn them that they are potentially opening their device up to security risks, and that doing so will limit our ability to support them if something goes wrong.
+- open <https://gi-os.github.io/BrightMailbox/> on a computer, enter the address and app
+  password, and in Lite tap **ADD GMAIL** then **SCAN**; or
+- tap **ADD GMAIL**, type the address and the sixteen letters (spaces do not matter), and
+  tap **SIGN IN**.
 
-## [Complete Documentation](./docs)
+**Other mail.** Tap **OTHER** (or Settings, **Add other mail**). Enter the address, the
+password (usually an app password: Fastmail, iCloud, Zoho and Yahoo all require one),
+and the IMAP server. Typical values: `imap.fastmail.com` / `smtp.fastmail.com` 465,
+`imap.mail.me.com` / `smtp.mail.me.com` 587, `imap.zoho.com` / `smtp.zoho.com` 465.
+
+Either way, Lite tries the credential against the server before keeping it. The first
+check reads the last two weeks of the inbox (up to 300 messages) and the Sent folder.
+
+Sent replies: Gmail files them in Sent automatically. Many other servers do not, and
+Lite does not append a copy to Sent.
+
+## Build
+
+```
+./gradlew -DlightSdk.toolOnly=true :tool:assembleDebug
+```
+
+Tests (the sorter, ration, MIME, HTML-to-text, IMAP parser and client, SMTP client, QR
+parser):
+
+```
+./gradlew -DlightSdk.toolOnly=true :tool:testDebugUnitTest
+```
+
+`.github/workflows/build-tool.yml` runs tests, lint and assemble on every push, with the
+same flags Light's tool builder uses.
+
+## Tool Library submission notes
+
+- Tool id `com.gios.brightmailboxlite`, label "Mailbox Lite", portrait.
+- Permissions: `INTERNET` (IMAP and SMTP) and `CAMERA` (the SDK QR scanner, only when
+  scanning a sign-in code). No capabilities.
+- Dependencies: only what `:sdk:client` already provides (kotlinx-serialization,
+  coroutines, DataStore, LightWork). No third-party mail or HTML libraries.
+- No server of any kind: the phone talks to the user's mail provider directly. Nothing
+  is collected or sent anywhere else.
+- Background work: one LightWork periodic job, `mail-sync`, every 15 minutes.
+
+## What was not verified on a device
+
+The build, unit tests and lint run in CI. The IMAP and SMTP clients are tested against
+scripted servers, not live ones, and the UI has not been run on a Light Phone III from
+this repository. In particular the wheel key codes are taken from the full app, which
+reads them the same way.
+
+## License
+
+MIT, as upstream. See [LICENSE](LICENSE).
