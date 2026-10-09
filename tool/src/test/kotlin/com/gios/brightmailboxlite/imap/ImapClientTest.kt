@@ -29,6 +29,7 @@ class ImapClientTest {
                 "* OK [UIDNEXT 40] Predicted next UID.\r\nA002 OK [READ-WRITE] INBOX selected.\r\n" +
                 "* SEARCH 31 38 39\r\nA003 OK SEARCH completed\r\n" +
                 "* 2 FETCH (UID 38 FLAGS () INTERNALDATE \"09-Oct-2026 08:00:00 +0000\" BODY[HEADER] {${header.length}}\r\n$header)\r\n" +
+                "* 1 FETCH (UID 31 FLAGS (\\Seen))\r\n" +
                 "* 3 FETCH (UID 39 FLAGS (\\Seen) INTERNALDATE \"09-Oct-2026 09:00:00 +0000\" BODY[HEADER] {${header.length}}\r\n$header)\r\n" +
                 "A004 OK Success\r\n" +
                 "A005 OK Success\r\n",

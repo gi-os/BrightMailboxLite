@@ -183,9 +183,11 @@ class ImapClient(input: InputStream, private val output: OutputStream, private v
                 val items = ImapParser.fetchItems(r)
                 val uid = items["UID"]?.text()?.toLongOrNull() ?: return@mapNotNull null
                 val flags = (items["FLAGS"] as? ImapValue.ListV)?.items?.mapNotNull { it.text() }?.toSet().orEmpty()
-                val header = (items.section("BODY[") as? ImapValue.Bytes)?.bytes ?: ByteArray(0)
+                // Servers may interleave unsolicited FETCHes carrying only flags; skip those.
+                val header = (items.section("BODY[") as? ImapValue.Bytes)?.bytes ?: return@mapNotNull null
                 FetchedHeader(uid, flags, items["INTERNALDATE"]?.text(), header)
             }
+            .distinctBy { it.uid }
     }
 
     /** Just some header fields, e.g. `TO CC` for counting who the user writes to. */
