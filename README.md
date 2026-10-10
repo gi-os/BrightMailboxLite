@@ -1,6 +1,6 @@
 # Mailbox Lite
 
-> **This is the Lite version.** BrightMailbox Lite is built only with Light's official SDK, so it can go in the Light Tool Library. It does less than the full app. For the full app, get [BrightMailbox](https://github.com/gi-os/BrightMailbox) ([on BrightMarket](https://brightmarket.gzl.dev/app/com.gios.brightmailbox/)).
+> **This is the Lite version.** Mailbox Lite is built only with Light's official SDK, so it can go in the Light Tool Library. It does less than the full app. For the full app, get [Mailbox](https://github.com/gi-os/BrightMailbox) ([on BrightMarket](https://brightmarket.gzl.dev/app/com.gios.brightmailbox/)).
 
 A mail tool for the Light Phone III, built as an official Light SDK tool. It is the
 small version of [BrightMailbox](https://github.com/gi-os/BrightMailbox), Gio's
