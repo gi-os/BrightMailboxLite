@@ -15,8 +15,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.thelightphone.sdk.ui.LightBarButton
@@ -134,6 +136,19 @@ fun Page(
                 content = content,
             )
             if (bottom.isNotEmpty()) LightBottomBar(bottom)
+        }
+    }
+}
+
+/** A full-screen message with nothing to tap, for work that cannot be taken back. */
+@Composable
+fun Busy(message: String) {
+    Themed {
+        Box(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 1f.gridUnitsAsDp()),
+            contentAlignment = Alignment.Center,
+        ) {
+            LightText(text = message, variant = LightTextVariant.Copy, align = TextAlign.Center)
         }
     }
 }

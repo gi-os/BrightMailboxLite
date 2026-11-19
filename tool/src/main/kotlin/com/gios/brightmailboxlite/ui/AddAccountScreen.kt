@@ -20,6 +20,7 @@ import com.thelightphone.sdk.ui.LightBarButton
 import com.thelightphone.sdk.ui.LightFullscreenModal
 import com.thelightphone.sdk.ui.LightTextField
 import com.thelightphone.sdk.ui.gridUnitsAsDp
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
@@ -44,6 +45,7 @@ class AddAccountScreen(sealedActivity: SealedLightActivity, private val gmail: B
     private var busy by mutableStateOf(false)
     private var modal by mutableStateOf<String?>(null)
     private var done by mutableStateOf(false)
+    private var checking: Job? = null
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean = wheel.handle(keyCode, event)
 
@@ -63,7 +65,14 @@ class AddAccountScreen(sealedActivity: SealedLightActivity, private val gmail: B
             return
         }
         if (busy) {
-            Themed { LightFullscreenModal(message = "Checking with the server…", onClose = {}) }
+            Themed {
+                LightFullscreenModal(message = "Checking with the server…", onClose = {
+                    // Nothing is kept until the server accepts the sign-in, so stopping is safe.
+                    checking?.cancel()
+                    checking = null
+                    busy = false
+                })
+            }
             return
         }
 
@@ -152,9 +161,10 @@ class AddAccountScreen(sealedActivity: SealedLightActivity, private val gmail: B
             smtpSsl = servers.smtpSsl,
         )
         busy = true
-        Mailbox.scope.launch {
+        checking = Mailbox.scope.launch {
             val r = Mailbox.addAccount(lightContext, draft, pw)
             busy = false
+            checking = null
             r.onSuccess {
                 done = true
                 modal = "Signed in as ${it.email}. The first check reads the last two weeks of mail and your Sent folder, so it can take a minute."
