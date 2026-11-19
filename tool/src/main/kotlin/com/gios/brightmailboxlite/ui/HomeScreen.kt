@@ -108,10 +108,16 @@ class HomeScreen(sealedActivity: SealedLightActivity) : SimpleLightScreen<Unit>(
                 }),
             ),
         ) {
-            status.error?.let { Note(it) }
+            val error = status.error
+            if (error != null && !status.busy) {
+                LightText(text = error, variant = LightTextVariant.Copy)
+                Link("Try again", { Mailbox.syncInBackground(lightContext) })
+                if (status.signIn) Link("Open Settings", { navigateTo({ SettingsScreen(it) }) })
+            }
             if (status.busy && messages.isEmpty()) Note("Checking for mail…")
 
-            if (visible.isEmpty()) {
+            // With an error and nothing to show, the error is the page, not "No Letters."
+            if (visible.isEmpty() && !(error != null && !status.busy && messages.isEmpty())) {
                 Spacer(Modifier.height(2f.gridUnitsAsDp()))
                 LightText(
                     text = when {
@@ -133,13 +139,13 @@ class HomeScreen(sealedActivity: SealedLightActivity) : SimpleLightScreen<Unit>(
                     else "That's today's ${day.readToday}. ${day.waiting} more wait for tomorrow.",
                 )
                 if (day.waiting > 0) {
-                    Link("Read one more", { Mailbox.scope.launch { Mailbox.oneMore(lightContext) } }, LightTextVariant.Detail)
+                    Link("Read one more", { Mailbox.scope.launch { Mailbox.oneMore(lightContext) } })
                 }
             } else if (day.waiting > 0) {
                 Note("${day.waiting} more waiting.")
             }
             if (earlier > 0) {
-                Link("Earlier Letters  $earlier", { navigateTo({ ListScreen(it, ListKind.EARLIER) }) }, LightTextVariant.Detail)
+                Link("Earlier Letters  $earlier", { navigateTo({ ListScreen(it, ListKind.EARLIER) }) })
             }
             Spacer(Modifier.height(1f.gridUnitsAsDp()))
         }
@@ -171,7 +177,7 @@ class HomeScreen(sealedActivity: SealedLightActivity) : SimpleLightScreen<Unit>(
             wheel = wheel,
             bottom = listOf(
                 LightBarButton.Text(text = "ADD GMAIL", onClick = { navigateTo({ AddAccountScreen(it, gmail = true) }) }),
-                LightBarButton.Text(text = "OTHER", onClick = { navigateTo({ AddAccountScreen(it, gmail = false) }) }),
+                LightBarButton.Text(text = "OTHER MAIL", onClick = { navigateTo({ AddAccountScreen(it, gmail = false) }) }),
             ),
         ) {
             Spacer(Modifier.height(1f.gridUnitsAsDp()))

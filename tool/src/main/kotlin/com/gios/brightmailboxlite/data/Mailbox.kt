@@ -2,6 +2,7 @@ package com.gios.brightmailboxlite.data
 
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.gios.brightmailboxlite.imap.ImapCommandException
 import com.gios.brightmailboxlite.mail.Addr
 import com.gios.brightmailboxlite.mail.Mime
 import com.gios.brightmailboxlite.mail.Outgoing
@@ -39,6 +40,8 @@ data class SyncStatus(
     val busy: Boolean = false,
     /** One sentence, or null when the last sync worked. */
     val error: String? = null,
+    /** True when the error is about a password, so the screen can point to Settings. */
+    val signIn: Boolean = false,
     val lastSyncAt: Long = 0,
 )
 
@@ -190,10 +193,12 @@ object Mailbox {
         try {
             _status.value = _status.value.copy(busy = true)
             val errors = ArrayList<String>()
+            var signIn = false
             for (acc in _accounts.value) {
                 val pw = password(ctx, acc.id)
                 if (pw == null) {
                     errors.add("${acc.email}: the stored password could not be read; add the account again.")
+                    signIn = true
                     continue
                 }
                 val book = _book.value
@@ -205,6 +210,7 @@ object Mailbox {
                 val fetched = result.getOrNull()
                 if (fetched == null) {
                     errors.add("${acc.email}: ${MailNet.friendly(result.exceptionOrNull() ?: Exception())}")
+                    if ((result.exceptionOrNull() as? ImapCommandException)?.isAuthFailure == true) signIn = true
                     continue
                 }
                 stateLock.withLock { apply(acc, fetched) }
@@ -214,7 +220,7 @@ object Mailbox {
                 prune()
                 persist()
             }
-            _status.value = SyncStatus(busy = false, error = errors.firstOrNull(), lastSyncAt = System.currentTimeMillis())
+            _status.value = SyncStatus(busy = false, error = errors.firstOrNull(), signIn = signIn, lastSyncAt = System.currentTimeMillis())
             return errors.isEmpty()
         } finally {
             if (_status.value.busy) _status.value = _status.value.copy(busy = false)
